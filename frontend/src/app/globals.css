@@ -1,0 +1,205 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ──────────────────────────────────────────
+   Design Tokens — Warm Editorial Light Theme
+   ────────────────────────────────────────── */
+:root {
+  /* Canvas (page-level backgrounds) */
+  --canvas:          #FAF8F5;
+  --canvas-alt:      #F2F0EC;
+
+  /* Surfaces (cards, panels, inputs) */
+  --surface:         #FFFFFF;
+  --surface-raised:  #FFFFFF;
+  --surface-overlay: #FFFFFF;
+
+  /* Borders */
+  --border:          #E7E2DB;
+  --border-muted:    #F0ECE6;
+
+  /* Ink (text) */
+  --ink:             #242321;
+  --ink-muted:       #77736D;
+  --ink-faint:       #A8A49D;
+
+  /* Accent — refined coral */
+  --accent:          #E8614D;
+  --accent-hover:    #D4503E;
+  --accent-muted:    #FFF0EB;
+  --accent-ink:      #FFFFFF;
+
+  /* Semantic colors */
+  --positive:        #2D9D78;
+  --positive-muted:  #ECFDF5;
+  --caution:         #D4870D;
+  --caution-muted:   #FFFBEB;
+  --negative:        #DC4A3A;
+  --negative-muted:  #FEF2F2;
+
+  /* Shadows */
+  --shadow-color: 30 20% 10%;
+}
+
+/* ──────────────────────────────────────────
+   Dark Theme
+   ────────────────────────────────────────── */
+.dark {
+  --canvas:          #111110;
+  --canvas-alt:      #191918;
+
+  --surface:         #1E1E1C;
+  --surface-raised:  #252523;
+  --surface-overlay: #2A2A28;
+
+  --border:          #33322F;
+  --border-muted:    #2A2928;
+
+  --ink:             #F5F3EF;
+  --ink-muted:       #AAA7A0;
+  --ink-faint:       #706D66;
+
+  --accent:          #F07563;
+  --accent-hover:    #E8614D;
+  --accent-muted:    rgba(240, 117, 99, 0.12);
+  --accent-ink:      #FFFFFF;
+
+  --positive:        #3DB88C;
+  --positive-muted:  rgba(61, 184, 140, 0.12);
+  --caution:         #E5A030;
+  --caution-muted:   rgba(229, 160, 48, 0.12);
+  --negative:        #EF5A4A;
+  --negative-muted:  rgba(239, 90, 74, 0.12);
+
+  --shadow-color: 0 0% 0%;
+}
+
+/* ──────────────────────────────────────────
+   Typography
+   ────────────────────────────────────────── */
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background-color: var(--canvas);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ──────────────────────────────────────────
+   Base Resets & Shared Utilities
+   ────────────────────────────────────────── */
+::selection {
+  background-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* Refined scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-faint);
+}
+
+/* ──────────────────────────────────────────
+   Provenance / Source Tags
+   ────────────────────────────────────────── */
+.source-tag {
+  @apply inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold ml-0.5;
+}
+.source-tag-A { background: #EFF6FF; color: #1E40AF; border: 1px solid #BFDBFE; }
+.source-tag-B { background: #ECFDF5; color: #065F46; border: 1px solid #A7F3D0; }
+.source-tag-C { background: #FFFBEB; color: #92400E; border: 1px solid #FDE68A; }
+.source-tag-D { background: #F5F3FF; color: #5B21B6; border: 1px solid #DDD6FE; }
+
+.dark .source-tag-A { background: rgba(59,130,246,0.12); color: #93C5FD; border-color: rgba(59,130,246,0.25); }
+.dark .source-tag-B { background: rgba(16,185,129,0.12); color: #6EE7B7; border-color: rgba(16,185,129,0.25); }
+.dark .source-tag-C { background: rgba(245,158,11,0.12); color: #FCD34D; border-color: rgba(245,158,11,0.25); }
+.dark .source-tag-D { background: rgba(139,92,246,0.12); color: #C4B5FD; border-color: rgba(139,92,246,0.25); }
+
+/* ──────────────────────────────────────────
+   Prose / Markdown Rendering
+   ────────────────────────────────────────── */
+.prose pre {
+  background-color: var(--canvas-alt);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  overflow-x: auto;
+  font-size: 0.8125rem;
+}
+
+/* ──────────────────────────────────────────
+   Animations — Restrained & Purposeful
+   ────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.97) translateY(4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.15s ease-out forwards;
+}
+
+.animate-scaleIn {
+  animation: scaleIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slideInLeft {
+  animation: slideInLeft 0.2s ease-out forwards;
+}
+
+.animate-slideInRight {
+  animation: slideInRight 0.2s ease-out forwards;
+}
+
+/* Respect reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fadeIn,
+  .animate-scaleIn,
+  .animate-slideInLeft,
+  .animate-slideInRight {
+    animation: none !important;
+  }
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/* ──────────────────────────────────────────
+   Component Utilities
+   ────────────────────────────────────────── */
+@layer utilities {
+  /* Focus ring using accent color */
+  .focus-ring {
+    @apply outline-none;
+    box-shadow: 0 0 0 2px var(--accent-muted), 0 0 0 3px var(--accent);
+  }
+}
