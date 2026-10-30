@@ -1,0 +1,17 @@
+Query ID,Category,Mode,Ret Latency (ms),E2E Latency (ms),Context Prec,Context Recall,Citation Prec,Citation Recall,Correctness,Hallucination Idx,Tokens,Judge Overall
+eval_01_factual,Direct factual retrieval,vector,75.83,5129.2,0.25,1.0,0.0,0.0,0.8333,0.7434,1605,95
+eval_02_single_source,Single-source questions,vector,11.99,5147.41,0.25,1.0,0.0,0.0,0.75,0.6914,1574,95
+eval_03_cross_source,Cross-source reasoning,vector,12.3,24351.22,0.5,1.0,0.5238,1.0,0.6923,0.6714,2209,70
+eval_04_multihop,Multi-hop reasoning,vector,11.46,29232.73,0.875,1.0,0.625,1.0,0.7133,0.6442,2589,85
+eval_05_comparison,Multi-source comparison,vector,11.68,28869.85,0.5625,1.0,1.0,1.0,0.5786,0.7611,1989,80
+eval_06_contradiction,Contradiction detection,vector,9.44,23492.6,0.25,1.0,0.0,0.0,0.656,0.6797,1635,85
+eval_07_youtube_ts,YouTube timestamp retrieval,vector,12.77,21766.17,0.375,1.0,0.0,0.0,0.75,0.6732,1718,85
+eval_08_unanswerable,Unanswerable questions,vector,11.61,20257.43,0.0,1.0,1.0,1.0,0.0,1.0,1474,90
+eval_01_factual,Direct factual retrieval,hybrid,584.31,5324.06,0.4,1.0,0.0,0.0,0.8333,0.7744,1540,100
+eval_02_single_source,Single-source questions,hybrid,303.26,8686.45,0.4,1.0,0.0,0.0,0.75,0.7132,1345,95
+eval_03_cross_source,Cross-source reasoning,hybrid,329.64,29848.5,0.6667,1.0,0.2941,1.0,0.7923,0.6475,2014,80
+eval_04_multihop,Multi-hop reasoning,hybrid,301.31,31202.26,0.7333,0.8333,0.0,0.0,0.6933,0.659,2275,75
+eval_05_comparison,Multi-source comparison,hybrid,504.48,23445.48,0.6,1.0,0.0,0.0,0.6429,0.7429,1930,85
+eval_06_contradiction,Contradiction detection,hybrid,455.23,22567.01,0.3333,1.0,0.0,0.0,0.68,0.772,1700,85
+eval_07_youtube_ts,YouTube timestamp retrieval,hybrid,96.43,27263.18,0.375,1.0,0.0,0.0,0.6667,0.6692,1601,100
+eval_08_unanswerable,Unanswerable questions,hybrid,123.62,22311.88,0.0,1.0,0.0,1.0,1.0,0.0,1714,90

@@ -51,6 +51,7 @@ async def get_conversation_with_ownership(
 # ---------------------------------------------------------
 
 @router.post("/projects/{project_id}/chats", response_model=ConversationResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/projects/{project_id}/conversations", response_model=ConversationResponse, status_code=status.HTTP_201_CREATED)
 async def create_conversation(
     project_id: str,
     req: ConversationCreateRequest,
@@ -90,9 +91,11 @@ async def create_conversation(
     )
 
 @router.get("/projects/{project_id}/chats", response_model=List[ConversationResponse])
+@router.get("/projects/{project_id}/conversations", response_model=List[ConversationResponse])
 async def list_project_conversations(
     project_id: str,
     status_filter: Optional[str] = Query(None, alias="status"),
+    q: Optional[str] = Query(None, alias="q"),
     current_user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
@@ -104,6 +107,8 @@ async def list_project_conversations(
     query: dict = {"project_id": project_id, "user_id": current_user["_id"]}
     if status_filter:
         query["status"] = status_filter
+    if q and q.strip():
+        query["title"] = {"$regex": q.strip(), "$options": "i"}
 
     cursor = db.conversations.find(query).sort("last_message_at", pymongo.DESCENDING)
     convs = await cursor.to_list(length=100)
@@ -130,7 +135,30 @@ async def list_project_conversations(
 # Individual Conversation Endpoints
 # ---------------------------------------------------------
 
+@router.get("/chats/{chat_id}", response_model=ConversationResponse)
+@router.get("/conversations/{chat_id}", response_model=ConversationResponse)
+async def get_conversation(
+    chat_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Fetch single conversation metadata."""
+    conv = await get_conversation_with_ownership(chat_id, current_user["_id"], db)
+    msg_count = await db.messages.count_documents({"conversation_id": chat_id})
+    return ConversationResponse(
+        _id=conv["_id"],
+        user_id=conv["user_id"],
+        project_id=conv["project_id"],
+        title=conv["title"],
+        status=conv.get("status", "active"),
+        created_at=conv["created_at"],
+        updated_at=conv["updated_at"],
+        last_message_at=conv.get("last_message_at", conv["updated_at"]),
+        message_count=msg_count,
+    )
+
 @router.get("/chats/{chat_id}/messages", response_model=PaginatedMessagesResponse)
+@router.get("/conversations/{chat_id}/messages", response_model=PaginatedMessagesResponse)
 async def get_conversation_messages(
     chat_id: str,
     limit: int = Query(50, ge=1, le=200),
@@ -367,6 +395,7 @@ async def send_conversation_message(
 
 
 @router.patch("/chats/{chat_id}", response_model=ConversationResponse)
+@router.patch("/conversations/{chat_id}", response_model=ConversationResponse)
 async def update_conversation(
     chat_id: str,
     req: ConversationUpdateRequest,
@@ -400,6 +429,7 @@ async def update_conversation(
     )
 
 @router.post("/chats/{chat_id}/archive", response_model=ConversationResponse)
+@router.post("/conversations/{chat_id}/archive", response_model=ConversationResponse)
 async def archive_conversation(
     chat_id: str,
     current_user: dict = Depends(get_current_user),
@@ -414,6 +444,7 @@ async def archive_conversation(
     )
 
 @router.delete("/chats/{chat_id}")
+@router.delete("/conversations/{chat_id}")
 async def delete_conversation(
     chat_id: str,
     current_user: dict = Depends(get_current_user),

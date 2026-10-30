@@ -221,6 +221,105 @@ export default function Home() {
     }
   };
 
+  const handleRenameConversation = async (conversationId: string, newTitle: string) => {
+    try {
+      const res = await fetch(`/api/chats/${conversationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ title: newTitle }),
+      });
+      if (res.ok) {
+        setConversations((prev) =>
+          prev.map((c) => ((c.id || c._id) === conversationId ? { ...c, title: newTitle } : c))
+        );
+        if (activeConversation && (activeConversation.id || activeConversation._id) === conversationId) {
+          setActiveConversation((prev) => (prev ? { ...prev, title: newTitle } : null));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to rename conversation:', err);
+    }
+  };
+
+  const handleDeleteConversation = async (conversationId: string) => {
+    try {
+      const res = await fetch(`/api/chats/${conversationId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const remaining = conversations.filter((c) => (c.id || c._id) !== conversationId);
+        setConversations(remaining);
+
+        if (activeConversation && (activeConversation.id || activeConversation._id) === conversationId) {
+          const pid = activeProject?.id || activeProject?._id;
+          if (remaining.length > 0) {
+            setActiveConversation(remaining[0]);
+            if (pid) {
+              localStorage.setItem(`active_chat_${pid}`, remaining[0].id || remaining[0]._id!);
+            }
+          } else {
+            setActiveConversation(null);
+            if (pid) {
+              localStorage.removeItem(`active_chat_${pid}`);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to delete conversation:', err);
+    }
+  };
+
+  const handleRenameProject = async (projectId: string, newName: string) => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name: newName }),
+      });
+      if (res.ok) {
+        setProjects((prev) =>
+          prev.map((p) => ((p.id || p._id) === projectId ? { ...p, name: newName } : p))
+        );
+        if (activeProject && (activeProject.id || activeProject._id) === projectId) {
+          setActiveProject((prev) => (prev ? { ...prev, name: newName } : null));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to rename project:', err);
+    }
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const remaining = projects.filter((p) => (p.id || p._id) !== projectId);
+        setProjects(remaining);
+        if (activeProject && (activeProject.id || activeProject._id) === projectId) {
+          if (remaining.length > 0) {
+            setActiveProject(remaining[0]);
+            localStorage.setItem('active_project_id', remaining[0].id || remaining[0]._id!);
+          } else {
+            setActiveProject(null);
+            localStorage.removeItem('active_project_id');
+            setSources([]);
+            setConversations([]);
+            setActiveConversation(null);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to delete project:', err);
+    }
+  };
+
   const handleDeleteSource = async (sourceId: string, originalUrl?: string) => {
     if (!sourceId && !originalUrl) return;
 
@@ -659,7 +758,7 @@ export default function Home() {
       ) : (
         /* ─── Three-Panel Workspace ─── */
         <div className="flex-1 flex flex-row min-h-0 overflow-hidden relative">
-          {/* 1. Left Sidebar: Sources (Desktop) */}
+          {/* 1. Left Sidebar: Sources & Conversations (Desktop) */}
           <div className="hidden lg:block h-full flex-shrink-0 transition-all duration-200">
             <SourcesSidebar
               sources={sources}
@@ -669,10 +768,22 @@ export default function Home() {
               onDeleteSource={handleDeleteSource}
               onRetrySource={handleRetrySource}
               loading={loadingSources}
+              projects={projects}
+              activeProject={activeProject}
+              onSelectProject={handleSelectProject}
+              onRenameProject={handleRenameProject}
+              onDeleteProject={handleDeleteProject}
+              onCreateProject={() => setProjectModalOpen(true)}
+              conversations={conversations}
+              activeConversation={activeConversation}
+              onSelectConversation={handleSelectConversation}
+              onNewChat={handleNewChat}
+              onRenameConversation={handleRenameConversation}
+              onDeleteConversation={handleDeleteConversation}
             />
           </div>
 
-          {/* Mobile Overlay Drawer: Sources */}
+          {/* Mobile Overlay Drawer: Sources & Conversations */}
           {mobileDrawer === 'sources' && (
             <div className="lg:hidden fixed inset-0 z-40 flex">
               <div
@@ -695,6 +806,30 @@ export default function Home() {
                   onDeleteSource={handleDeleteSource}
                   onRetrySource={handleRetrySource}
                   loading={loadingSources}
+                  projects={projects}
+                  activeProject={activeProject}
+                  onSelectProject={(p) => {
+                    handleSelectProject(p);
+                    setMobileDrawer(null);
+                  }}
+                  onRenameProject={handleRenameProject}
+                  onDeleteProject={handleDeleteProject}
+                  onCreateProject={() => {
+                    setMobileDrawer(null);
+                    setProjectModalOpen(true);
+                  }}
+                  conversations={conversations}
+                  activeConversation={activeConversation}
+                  onSelectConversation={(c) => {
+                    handleSelectConversation(c);
+                    setMobileDrawer(null);
+                  }}
+                  onNewChat={() => {
+                    handleNewChat();
+                    setMobileDrawer(null);
+                  }}
+                  onRenameConversation={handleRenameConversation}
+                  onDeleteConversation={handleDeleteConversation}
                 />
               </div>
             </div>

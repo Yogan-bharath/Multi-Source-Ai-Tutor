@@ -14,11 +14,15 @@ that explicitly cite which sources support each claim.
 Inline provenance format: use [Source A], [Source B], etc. immediately after any claim derived from that source.
 You may use [Source A, Source B] when multiple sources agree on a point.
 
+For video / YouTube sources with timestamps, provide clickable timestamp links or timestamped citations whenever available:
+e.g. [Source A (02:15)](https://www.youtube.com/watch?v=VIDEO_ID&t=135s) or [Source A @ 02:15] so the student can jump directly to that exact moment in the video.
+
 Formatting guidelines:
 - Use markdown: headers (##), bullet points, bold for key terms
 - Be educational and thorough, not just a summary
 - Maintain a pedagogical tone appropriate for a student learning the topic
 """
+
 
 AGREE_TEMPLATE = """
 The sources agree on this topic. Synthesize a clear, unified explanation.
@@ -79,7 +83,15 @@ def synthesize_answer(
     for source_id, chunks in per_source_chunks.items():
         if not chunks:
             continue
-        combined = "\n---\n".join(c["text"] for c in chunks)
+        chunk_lines = []
+        for c in chunks:
+            ts_info = ""
+            if c.get("timestamp_formatted"):
+                ts_info = f" [Timestamp: {c['timestamp_formatted']}]"
+                if c.get("timestamp_url"):
+                    ts_info += f" ({c['timestamp_url']})"
+            chunk_lines.append(f"{c.get('text', '')}{ts_info}")
+        combined = "\n---\n".join(chunk_lines)
         context_parts.append(f"=== {source_id} ===\n{combined}")
     context = "\n\n".join(context_parts)
 

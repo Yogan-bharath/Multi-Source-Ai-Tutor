@@ -27,6 +27,9 @@ from services.discovery import discover_related_urls
 from services.auth import get_optional_current_user, get_current_user
 from services.graph_extraction_service import extract_and_store_graph
 from repositories.graph_repository import GraphRepository
+from schemas.youtube_schemas import YouTubeIngestRequest, YouTubePreviewResponse, YouTubeURLValidation
+from services.youtube_extraction_service import validate_and_extract_youtube_id, fetch_youtube_metadata, fetch_youtube_transcript
+from services.youtube_chunking_service import chunk_transcript_segments
 from database import get_db, get_utc_now
 from config import get_settings
 import logging
@@ -827,4 +830,287 @@ async def ingest_uploaded_file(
         sources=all_sources,
         results=[source_res],
     )
+
+
+@router.post("/ingest/youtube/preview", response_model=YouTubePreviewResponse)
+async def youtube_preview(
+    payload: dict,
+    current_user: Optional[dict] = Depends(get_optional_current_user),
+):
+    """
+    Fetch lightweight metadata preview for a YouTube video URL without downloading.
+    """
+    url = (payload.get("url") or "").strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="YouTube URL is required.")
+
+    validation = validate_and_extract_youtube_id(url)
+    if not validation.is_valid or not validation.video_id:
+        raise HTTPException(status_code=400, detail=validation.error_message or "Invalid YouTube URL format.")
+
+    try:
+        meta = await fetch_youtube_metadata(validation.video_id)
+        return YouTubePreviewResponse(
+            video_id=meta.video_id,
+            url=f"https://www.youtube.com/watch?v={meta.video_id}",
+            title=meta.title,
+            author=meta.author,
+            duration=meta.duration,
+            duration_formatted=meta.duration_formatted,
+            thumbnail_url=meta.thumbnail_url,
+            available_subtitles=meta.available_subtitles,
+            is_available=meta.is_available,
+        )
+    except Exception as e:
+        logger.error(f"[youtube_preview] Failed preview for {validation.video_id}: {e}")
+        raise HTTPException(status_code=400, detail=f"Could not load YouTube video preview: {str(e)}")
+
+
+@router.post("/ingest/youtube", response_model=IngestResponse)
+async def ingest_youtube(
+    req: YouTubeIngestRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """
+    Ingest a YouTube video transcript as a native source into the notebook.
+    Extracts metadata and subtitles (no audio/video download).
+    Chunks with sentence-boundary timestamp preservation.
+    Indexes into FAISS and triggers GraphRAG extraction.
+    Persists status in MongoDB to prevent stale processing states.
+    """
+    # 1. Ownership & existence check
+    project = await db.projects.find_one({"_id": req.project_id, "user_id": current_user["_id"]})
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+
+    # 2. Validate URL and extract video ID
+    validation = validate_and_extract_youtube_id(req.url)
+    if not validation.is_valid or not validation.video_id:
+        raise HTTPException(status_code=400, detail=validation.error_message or "Invalid YouTube URL.")
+
+    video_id = validation.video_id
+    canonical_url = f"https://www.youtube.com/watch?v={video_id}"
+    index_target_id = project["index_id"]
+    now = get_utc_now()
+
+    # 3. Check existing source & recover stale/interrupted jobs
+    existing_source = await db.sources.find_one({
+        "project_id": project["_id"],
+        "$or": [{"video_id": video_id}, {"original_url": canonical_url}, {"original_url": req.url}],
+    })
+
+    if existing_source and existing_source.get("status") == "processing":
+        # Check if stuck for more than 3 minutes
+        started_at = existing_source.get("started_at") or existing_source.get("updated_at")
+        if started_at:
+            delta = (now - started_at).total_seconds()
+            if delta < 180:
+                raise HTTPException(
+                    status_code=409,
+                    detail="This YouTube video is currently being processed. Please wait a moment.",
+                )
+
+    # 4. Determine source label (e.g. Source A, Source B)
+    idx, current_meta = load_index(index_target_id)
+    if existing_source and existing_source.get("source_id"):
+        sid_val = existing_source["source_id"]
+    else:
+        existing_sids = [s.get("source_id") for s in current_meta.get("sources", []) if s.get("source_id")] if current_meta else []
+        sid_val = get_next_source_label(existing_sids)
+
+    # 5. Persist processing status in MongoDB
+    source_record = {
+        "user_id": current_user["_id"],
+        "project_id": project["_id"],
+        "source_id": sid_val,
+        "original_url": req.url,
+        "resolved_url": canonical_url,
+        "video_id": video_id,
+        "source_type": "youtube",
+        "status": "processing",
+        "started_at": now,
+        "updated_at": now,
+        "error": None,
+    }
+    await db.sources.update_one(
+        {"project_id": project["_id"], "video_id": video_id},
+        {"$set": source_record, "$setOnInsert": {"_id": str(uuid.uuid4()), "created_at": now}},
+        upsert=True,
+    )
+
+    try:
+        # 6. Fetch metadata
+        meta_info = await fetch_youtube_metadata(video_id)
+
+        # 7. Fetch transcripts/captions
+        segments, lang, is_auto = await fetch_youtube_transcript(video_id, req.preferred_language or "en")
+        if not segments:
+            raise ValueError(
+                f"No transcript or captions available for video '{meta_info.title}'. "
+                "Only videos with available transcripts or captions can be indexed."
+            )
+
+        # 8. Sentence-aware chunking preserving timestamps
+        chunks = chunk_transcript_segments(
+            segments=segments,
+            video_id=video_id,
+            target_chunk_duration=60,
+            chunk_overlap_duration=15,
+        )
+        if not chunks:
+            raise ValueError("Transcript content could not be segmented into valid chunks.")
+
+        # Limit to max chunks to avoid indexing overflow
+        if len(chunks) > settings.max_chunks_per_source:
+            chunks = chunks[:settings.max_chunks_per_source]
+            is_trunc = True
+        else:
+            is_trunc = False
+
+        chunk_count = len(chunks)
+        char_count = sum(len(c.text) for c in chunks)
+
+        custom_chunks = [
+            {
+                "chunk_id": f"{sid_val}:chunk_{i}",
+                "text": ch.text,
+                "start_time": ch.start_time,
+                "end_time": ch.end_time,
+                "timestamp_formatted": ch.timestamp_formatted,
+                "timestamp_url": ch.timestamp_url,
+                "video_id": video_id,
+                "source_type": "youtube",
+            }
+            for i, ch in enumerate(chunks)
+        ]
+
+        src_entry = {
+            "source_id": sid_val,
+            "url": canonical_url,
+            "original_url": req.url,
+            "resolved_url": canonical_url,
+            "title": meta_info.title,
+            "source_type": "youtube",
+            "custom_chunks": custom_chunks,
+            "truncated": is_trunc,
+            "char_count": char_count,
+            "video_id": video_id,
+            "channel_name": meta_info.author,
+            "duration": meta_info.duration,
+            "duration_formatted": meta_info.duration_formatted,
+            "thumbnail_url": meta_info.thumbnail_url,
+        }
+
+        # 9. Index into FAISS
+        topic_hint = project.get("name", "Learning Project")
+        meta = append_to_index([src_entry], index_target_id, topic_hint)
+        total_chunks = len(meta.get("chunks", []))
+
+        # 10. Update MongoDB source with success status
+        now_done = get_utc_now()
+        source_success = {
+            "user_id": current_user["_id"],
+            "project_id": project["_id"],
+            "source_id": sid_val,
+            "original_url": req.url,
+            "resolved_url": canonical_url,
+            "title": meta_info.title,
+            "video_id": video_id,
+            "channel_name": meta_info.author,
+            "duration": meta_info.duration,
+            "duration_formatted": meta_info.duration_formatted,
+            "thumbnail_url": meta_info.thumbnail_url,
+            "source_type": "youtube",
+            "status": "success",
+            "chunks_indexed": chunk_count,
+            "char_count": char_count,
+            "truncated": is_trunc,
+            "error": None,
+            "updated_at": now_done,
+        }
+        await db.sources.update_one(
+            {"project_id": project["_id"], "video_id": video_id},
+            {"$set": source_success},
+        )
+        await db.projects.update_one({"_id": project["_id"]}, {"$set": {"updated_at": now_done}})
+
+        # 11. Trigger GraphRAG extraction if enabled
+        if settings.graph_rag_enabled:
+            try:
+                graph_repo = GraphRepository(db)
+                graph_chunks = [{"text": ch.text, "chunk_id": f"{sid_val}:chunk_{i}"} for i, ch in enumerate(chunks)]
+                await extract_and_store_graph(
+                    repo=graph_repo,
+                    project_id=project["_id"],
+                    user_id=current_user["_id"],
+                    source_id=sid_val,
+                    chunks=graph_chunks,
+                )
+            except Exception as ge:
+                logger.warning(f"[youtube_ingest] Graph extraction error for {sid_val}: {ge}")
+
+        source_res = SourceResult(
+            source_id=sid_val,
+            url=canonical_url,
+            original_url=req.url,
+            resolved_url=canonical_url,
+            title=meta_info.title,
+            status="success",
+            chunk_count=chunk_count,
+            chunks_indexed=chunk_count,
+            char_count=char_count,
+            truncated=is_trunc,
+            error=None,
+        )
+
+        all_sources = [
+            SourceResult(
+                source_id=s["source_id"],
+                url=s.get("url") or "",
+                original_url=s.get("original_url", s.get("url", "")),
+                resolved_url=s.get("resolved_url"),
+                title=s.get("title", ""),
+                status="success",
+                chunk_count=s.get("chunk_count", 0),
+                chunks_indexed=s.get("chunk_count", 0),
+                char_count=s.get("char_count", 0),
+                truncated=s.get("truncated", False),
+                error=None,
+            )
+            for s in meta.get("sources", [])
+        ]
+
+        return IngestResponse(
+            session_id=index_target_id,
+            project_id=project["_id"],
+            topic_name=topic_hint,
+            total_sources=len(all_sources),
+            successful_sources=len(all_sources),
+            failed_sources=0,
+            total_chunks_indexed=total_chunks,
+            total_submitted=1,
+            successful_count=1,
+            failed_count=0,
+            total_chunks=total_chunks,
+            sources=all_sources,
+            results=[source_res],
+        )
+
+    except Exception as exc:
+        now_err = get_utc_now()
+        err_msg = str(exc)
+        logger.error(f"[youtube_ingest] Ingestion failed for video {video_id}: {err_msg}")
+        await db.sources.update_one(
+            {"project_id": project["_id"], "video_id": video_id},
+            {"$set": {
+                "status": "failed",
+                "error": err_msg,
+                "updated_at": now_err,
+            }},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to ingest YouTube video: {err_msg}",
+        )
 

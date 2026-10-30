@@ -72,11 +72,17 @@ async def create_project(
 
 @router.get("", response_model=List[ProjectResponse])
 async def list_projects(
+    q: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
-    """List all projects belonging to the current user, ordered by recent activity."""
-    cursor = db.projects.find({"user_id": current_user["_id"]}).sort("updated_at", pymongo.DESCENDING)
+    """List all projects belonging to the current user, optionally filtered by name search, ordered by recent activity."""
+    query = {"user_id": current_user["_id"]}
+    if q and q.strip():
+        import re
+        query["name"] = {"$regex": re.escape(q.strip()), "$options": "i"}
+
+    cursor = db.projects.find(query).sort("updated_at", pymongo.DESCENDING)
     projects = await cursor.to_list(length=100)
 
     results = []
@@ -174,13 +180,25 @@ async def delete_project(
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
     """
-    Delete project, its sources, conversations, messages, and associated FAISS files.
+    Cascading delete of project and all associated resources:
+    - Verifies ownership strictly before destructive ops
+    - Cleans up FAISS files on disk safely
+    - Removes studio_artifacts
+    - Removes messages and conversations
+    - Removes sources
+    - Removes GraphRAG entities, relationships, and processing statuses
+    - Removes project document
+    - Is idempotent and retryable if partial failure occurs
     """
     project = await get_project_with_ownership(project_id, current_user["_id"], db)
-    index_id = project["index_id"]
+    index_id = project.get("index_id")
 
-    # 1. Clean up FAISS files on disk
-    delete_index_files(index_id)
+    # 1. Clean up FAISS files on disk safely
+    if index_id:
+        try:
+            delete_index_files(index_id)
+        except Exception as e:
+            pass
 
     # 2. Delete messages in all conversations belonging to project
     await db.messages.delete_many({"project_id": project_id})
@@ -188,18 +206,21 @@ async def delete_project(
     # 3. Delete conversations
     await db.conversations.delete_many({"project_id": project_id})
 
-    # 4. Delete sources
+    # 4. Delete studio artifacts
+    await db.studio_artifacts.delete_many({"project_id": project_id})
+
+    # 5. Delete sources
     await db.sources.delete_many({"project_id": project_id})
 
-    # 5. Delete graph data (entities, relationships, processing status)
+    # 6. Delete graph data (entities, relationships, processing status)
     try:
         graph_repo = GraphRepository(db)
         await graph_repo.delete_project_graph(project_id, current_user["_id"])
     except Exception:
-        pass  # Graph cleanup failure should not prevent project deletion
+        pass
 
-    # 6. Delete project
-    await db.projects.delete_one({"_id": project_id})
+    # 7. Delete project document verifying ownership
+    await db.projects.delete_one({"_id": project_id, "user_id": current_user["_id"]})
 
     return {"message": "Project and all associated data deleted successfully."}
 
@@ -209,7 +230,7 @@ async def get_project_sources(
     current_user: dict = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
-    """Retrieve all indexed sources for a project."""
+    """Retrieve all indexed sources for a project, including rich metadata."""
     await get_project_with_ownership(project_id, current_user["_id"], db)
     cursor = db.sources.find({"project_id": project_id}).sort("created_at", pymongo.ASCENDING)
     sources = await cursor.to_list(length=100)
@@ -229,6 +250,13 @@ async def get_project_sources(
             "char_count": s.get("char_count", 0),
             "truncated": s.get("truncated", False),
             "error": s.get("error"),
+            "video_id": s.get("video_id"),
+            "channel_name": s.get("channel_name"),
+            "thumbnail_url": s.get("thumbnail_url"),
+            "duration": s.get("duration"),
+            "duration_formatted": s.get("duration_formatted"),
+            "updated_at": s.get("updated_at"),
+            "created_at": s.get("created_at"),
         }
         for s in sources
     ]

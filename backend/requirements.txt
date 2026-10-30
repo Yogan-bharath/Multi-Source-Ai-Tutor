@@ -19,3 +19,4 @@ argon2-cffi==25.1.0
 pyjwt==2.15.1
 pypdf==6.21.4
 networkx>=3.0
+yt-dlp>=2024.4.9

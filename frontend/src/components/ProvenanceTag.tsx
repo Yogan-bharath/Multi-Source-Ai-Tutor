@@ -49,24 +49,96 @@ export function ProvenanceTag({ sourceId }: { sourceId: string }) {
   );
 }
 
+export function YouTubeTimestampBadge({
+  sourceId,
+  timestamp,
+  url,
+}: {
+  sourceId: string;
+  timestamp: string;
+  url?: string;
+}) {
+  const style = getSourceStyle(sourceId);
+  const badge = (
+    <span
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono font-semibold mx-0.5 transition-all hover:opacity-90 align-baseline cursor-pointer"
+      style={{
+        background: 'rgba(239, 68, 68, 0.12)',
+        color: '#ef4444',
+        border: '1px solid rgba(239, 68, 68, 0.35)',
+      }}
+      title={url ? `Open YouTube video at ${timestamp}` : undefined}
+    >
+      <span>{sourceId}</span>
+      <span className="opacity-70 text-[10px]">@</span>
+      <span className="underline decoration-dotted">{timestamp}</span>
+      <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M8 5v14l11-7z" />
+      </svg>
+    </span>
+  );
+
+  if (url) {
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-block no-underline"
+      >
+        {badge}
+      </a>
+    );
+  }
+  return badge;
+}
+
 /**
- * Parse markdown text and convert [Source X] and [Source X, Source Y] patterns
- * into colored ProvenanceTag components.
+ * Parse markdown text and convert:
+ * 1. [Source X (MM:SS)](https://...) or [Source X @ MM:SS](https://...) -> YouTubeTimestampBadge with link
+ * 2. [Source X @ MM:SS] or [Source X (MM:SS)] -> YouTubeTimestampBadge
+ * 3. [Source A] or [Source A, Source B] -> standard ProvenanceTag
  */
 export function parseProvenanceTags(text: string): React.ReactNode[] {
-  const pattern = /\[(Source [A-Za-z0-9]+(?:\s*,\s*Source [A-Za-z0-9]+)*)\]/g;
+  // Regex matching all 3 citation variants
+  const combinedPattern = /\[(Source [A-Za-z0-9]+)\s*(?:@|\()\s*([0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?)\)?\]\((https?:\/\/[^\s\)]+)\)|\[(Source [A-Za-z0-9]+)\s*(?:@|\()\s*([0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?)\)?\]|\[(Source [A-Za-z0-9]+(?:\s*,\s*Source [A-Za-z0-9]+)*)\]/g;
+
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
-  while ((match = pattern.exec(text)) !== null) {
+  while ((match = combinedPattern.exec(text)) !== null) {
     if (match.index > lastIndex) {
       parts.push(text.slice(lastIndex, match.index));
     }
-    const sources = match[1].split(',').map((s) => s.trim());
-    sources.forEach((src, i) => {
-      parts.push(<ProvenanceTag key={`${match!.index}-${i}`} sourceId={src} />);
-    });
+
+    if (match[1] && match[2] && match[3]) {
+      // 1. [Source X (MM:SS)](url)
+      parts.push(
+        <YouTubeTimestampBadge
+          key={`yt-link-${match.index}`}
+          sourceId={match[1]}
+          timestamp={match[2]}
+          url={match[3]}
+        />
+      );
+    } else if (match[4] && match[5]) {
+      // 2. [Source X @ MM:SS]
+      parts.push(
+        <YouTubeTimestampBadge
+          key={`yt-ts-${match.index}`}
+          sourceId={match[4]}
+          timestamp={match[5]}
+        />
+      );
+    } else if (match[6]) {
+      // 3. [Source A, Source B]
+      const sources = match[6].split(',').map((s) => s.trim());
+      sources.forEach((src, i) => {
+        parts.push(<ProvenanceTag key={`src-${match!.index}-${i}`} sourceId={src} />);
+      });
+    }
+
     lastIndex = match.index + match[0].length;
   }
 
@@ -76,3 +148,4 @@ export function parseProvenanceTags(text: string): React.ReactNode[] {
 
   return parts;
 }
+

@@ -1,0 +1,215 @@
+{
+  "corpus_sources": [
+    {
+      "source_id": "src_wiki_transformers",
+      "type": "website",
+      "title": "Transformer (deep learning architecture)",
+      "url": "https://en.wikipedia.org/wiki/Transformer_(deep_learning_architecture)",
+      "content": "The Transformer is a deep learning architecture developed by researchers at Google and introduced in the 2017 paper 'Attention Is All You Need'. Transformers are based on the self-attention mechanism, which computes representations of an input sequence without relying on recurrent layers or sequence-aligned convolutional networks. In standard Transformers, the multi-head self-attention mechanism runs with O(N^2) computational complexity with respect to sequence length N. Pre-layer normalization (Pre-LN) places LayerNorm before residual blocks, improving training stability in very deep networks compared to the original Post-LN formulation. Transformers became the predominant paradigm for modern large language models, including BERT and the GPT series. The primary limitation of standard dense attention is quadratic time and memory complexity as context length scales."
+    },
+    {
+      "source_id": "src_paper_rag",
+      "type": "document",
+      "title": "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks",
+      "url": "https://arxiv.org/abs/2005.11401",
+      "content": "Retrieval-Augmented Generation (RAG) models combine pre-trained parametric memory (a sequence-to-sequence model such as BART) with non-parametric memory (a dense vector index of Wikipedia accessed via Dense Passage Retrieval or DPR). RAG reduces factual hallucinations by grounding generation in retrieved documents. In standard RAG pipelines, retrieval latency typically ranges between 15ms and 80ms depending on index size and whether hierarchical vector search or HNSW indexing is employed. While standard RAG retrieves static unstructured text chunks, GraphRAG integrates knowledge graphs by traversing entities and relationships to link multi-hop facts that vector similarity alone often misses. RAG addresses the fundamental limitation of static parametric knowledge by updating the non-parametric document index without retraining the base language model."
+    },
+    {
+      "source_id": "src_notes_benchmarks",
+      "type": "notes",
+      "title": "Engineering Notes: Retrieval Complexity & Speedup",
+      "url": "notes://engineering-eval/complexity-benchmarks",
+      "content": "Internal benchmarks for vector search versus graph traversal: Dense vector search over FAISS Flat L2 on 10,000 chunks achieves an average retrieval latency of 18ms. HNSW indexing scales to sub-5ms search times. Conversely, graph database traversal over Neo4j or MongoDB graph collections introduces 25ms to 55ms latency depending on expansion depth. Contradiction note: While preliminary team documentation claimed that Dense Passage Retrieval (DPR) requires zero GPU memory during inference, empirical profiling proves DPR embedding generation requires at least 1.8GB of VRAM for the dual-encoder query model. Hybrid retrieval combines reciprocal rank fusion (RRF) with normalized dense similarity scores, retaining 94% of top-1 precision while resolving multi-hop entities."
+    },
+    {
+      "source_id": "src_yt_deeplearning",
+      "type": "youtube",
+      "title": "State of the Art AI Architectures Masterclass",
+      "url": "https://www.youtube.com/watch?v=uaEXcgBpLbo",
+      "video_id": "uaEXcgBpLbo",
+      "duration": "27:27",
+      "content": "Welcome back everyone. Today we are exploring modern AI pipelines. At [02:15] (135s), we break down how multi-head self-attention allows tokens to attend to all previous positions simultaneously, which solves the bottleneck of recurrent networks. At [08:40] (520s), we cover why dense vector retrieval fails on multi-hop questions when connecting entities separated across separate documents. At [14:20] (860s), we demonstrate how hybrid knowledge graph retrieval links entities like FastAPI, PyTorch, and CUDA together. At [21:05] (1265s), we explore timestamped citations for video learning so students can jump straight to the source timestamp. Remember to subscribe and leave questions below."
+    }
+  ],
+  "graph_knowledge": {
+    "entities": [
+      {
+        "name": "Transformer",
+        "entity_type": "Architecture",
+        "description": "Deep learning architecture introduced in 2017 based on self-attention."
+      },
+      {
+        "name": "Self-Attention",
+        "entity_type": "Mechanism",
+        "description": "Mechanism computing sequence representations with O(N^2) complexity."
+      },
+      {
+        "name": "RAG",
+        "entity_type": "Architecture",
+        "description": "Retrieval-Augmented Generation combining parametric language models with non-parametric index."
+      },
+      {
+        "name": "GraphRAG",
+        "entity_type": "Methodology",
+        "description": "Graph-based retrieval augmenting vector search with entity-relationship traversals."
+      },
+      {
+        "name": "DPR",
+        "entity_type": "Model",
+        "description": "Dense Passage Retrieval dual-encoder model used for vector retrieval."
+      },
+      {
+        "name": "FAISS",
+        "entity_type": "Library",
+        "description": "Vector similarity search and clustering library developed by Meta."
+      },
+      {
+        "name": "Pre-LN",
+        "entity_type": "Technique",
+        "description": "Pre-layer normalization technique stabilizing very deep Transformer training."
+      }
+    ],
+    "relationships": [
+      {
+        "source_entity": "Transformer",
+        "target_entity": "Self-Attention",
+        "relation_type": "UTILIZES",
+        "description": "Transformers rely on multi-head self-attention mechanisms.",
+        "weight": 1.0
+      },
+      {
+        "source_entity": "Transformer",
+        "target_entity": "Pre-LN",
+        "relation_type": "USES_VARIANT",
+        "description": "Deep Transformer architectures use Pre-LN for numerical stability.",
+        "weight": 0.9
+      },
+      {
+        "source_entity": "RAG",
+        "target_entity": "DPR",
+        "relation_type": "USES_RETRIEVER",
+        "description": "Standard RAG uses DPR dual encoders for passage retrieval.",
+        "weight": 0.95
+      },
+      {
+        "source_entity": "RAG",
+        "target_entity": "FAISS",
+        "relation_type": "INDEXED_BY",
+        "description": "RAG non-parametric passage embeddings are indexed via FAISS.",
+        "weight": 0.95
+      },
+      {
+        "source_entity": "GraphRAG",
+        "target_entity": "RAG",
+        "relation_type": "EXTENDS",
+        "description": "GraphRAG extends vector RAG with graph entity-relationship traversal.",
+        "weight": 1.0
+      },
+      {
+        "source_entity": "GraphRAG",
+        "target_entity": "DPR",
+        "relation_type": "HYBRID_WITH",
+        "description": "GraphRAG fuses graph knowledge traversal with DPR vector retrieval.",
+        "weight": 0.85
+      }
+    ]
+  },
+  "benchmark_queries": [
+    {
+      "id": "eval_01_factual",
+      "category": "Direct factual retrieval",
+      "question": "What is the computational complexity of the standard multi-head self-attention mechanism in Transformers?",
+      "expected_answer": "Standard multi-head self-attention runs with O(N^2) quadratic computational complexity with respect to sequence length N.",
+      "supporting_source_ids": ["src_wiki_transformers"],
+      "expected_evidence": ["O(N^2)", "quadratic", "sequence length"],
+      "expected_entities": ["Transformer", "Self-Attention"],
+      "is_answerable": true,
+      "requires_timestamps": false,
+      "expected_timestamps": []
+    },
+    {
+      "id": "eval_02_single_source",
+      "category": "Single-source questions",
+      "question": "Why is Pre-layer normalization (Pre-LN) used in deep Transformer networks according to Wikipedia?",
+      "expected_answer": "Pre-layer normalization (Pre-LN) places LayerNorm before residual blocks to improve training stability in very deep networks compared to Post-LN.",
+      "supporting_source_ids": ["src_wiki_transformers"],
+      "expected_evidence": ["Pre-layer normalization", "LayerNorm", "stability", "Post-LN"],
+      "expected_entities": ["Pre-LN", "Transformer"],
+      "is_answerable": true,
+      "requires_timestamps": false,
+      "expected_timestamps": []
+    },
+    {
+      "id": "eval_03_cross_source",
+      "category": "Cross-source reasoning",
+      "question": "How does RAG solve the scaling and memory limitations of standard Transformers?",
+      "expected_answer": "Transformers suffer from quadratic context scaling complexity and static parametric memory. RAG overcomes this by decoupling parametric generation from a dynamically updatable non-parametric dense vector index, grounding answers without needing full-context quadratic self-attention.",
+      "supporting_source_ids": ["src_wiki_transformers", "src_paper_rag"],
+      "expected_evidence": ["parametric", "non-parametric", "quadratic", "grounding", "retraining"],
+      "expected_entities": ["Transformer", "RAG"],
+      "is_answerable": true,
+      "requires_timestamps": false,
+      "expected_timestamps": []
+    },
+    {
+      "id": "eval_04_multihop",
+      "category": "Multi-hop reasoning",
+      "question": "Trace the architectural chain linking self-attention in Transformers to hybrid GraphRAG retrieval through RAG and DPR.",
+      "expected_answer": "Transformers utilize self-attention for sequence encoding; RAG pairs this parametric transformer backbone with DPR dense passage retrieval indexed in FAISS; and GraphRAG extends RAG by traversing entity-relationship graphs to connect multi-hop passages missed by dense vectors alone.",
+      "supporting_source_ids": ["src_wiki_transformers", "src_paper_rag", "src_notes_benchmarks"],
+      "expected_evidence": ["self-attention", "DPR", "GraphRAG", "FAISS", "multi-hop", "traversal"],
+      "expected_entities": ["Transformer", "Self-Attention", "RAG", "DPR", "GraphRAG"],
+      "is_answerable": true,
+      "requires_timestamps": false,
+      "expected_timestamps": []
+    },
+    {
+      "id": "eval_05_comparison",
+      "category": "Multi-source comparison",
+      "question": "Compare the latency and scaling trade-offs of FAISS vector search versus Graph traversal according to the research paper and engineering notes.",
+      "expected_answer": "FAISS Flat L2 dense vector retrieval achieves ~18ms latency (and sub-5ms with HNSW indexing), whereas graph database traversal introduces 25ms to 55ms latency. However, graph traversal captures multi-hop entity relationships that dense vector similarity alone misses.",
+      "supporting_source_ids": ["src_paper_rag", "src_notes_benchmarks"],
+      "expected_evidence": ["18ms", "25ms", "55ms", "HNSW", "FAISS", "graph traversal", "multi-hop"],
+      "expected_entities": ["FAISS", "GraphRAG"],
+      "is_answerable": true,
+      "requires_timestamps": false,
+      "expected_timestamps": []
+    },
+    {
+      "id": "eval_06_contradiction",
+      "category": "Contradiction detection",
+      "question": "Does Dense Passage Retrieval (DPR) require GPU memory during inference?",
+      "expected_answer": "There is a contradiction: preliminary team documentation claimed DPR requires zero GPU memory, but empirical engineering benchmarks prove DPR embedding generation requires at least 1.8GB of VRAM for the dual-encoder query model.",
+      "supporting_source_ids": ["src_notes_benchmarks"],
+      "expected_evidence": ["zero GPU memory", "1.8GB", "VRAM", "contradiction", "dual-encoder"],
+      "expected_entities": ["DPR"],
+      "is_answerable": true,
+      "requires_timestamps": false,
+      "expected_timestamps": []
+    },
+    {
+      "id": "eval_07_youtube_ts",
+      "category": "YouTube timestamp retrieval",
+      "question": "At what specific timestamp does the video masterclass explain why dense vector retrieval fails on multi-hop questions and introduce knowledge graphs?",
+      "expected_answer": "The video explains why dense vector retrieval fails on multi-hop questions at [08:40] (520 seconds), and demonstrates hybrid knowledge graph retrieval linking entities at [14:20] (860 seconds).",
+      "supporting_source_ids": ["src_yt_deeplearning"],
+      "expected_evidence": ["08:40", "14:20", "520s", "860s", "multi-hop", "knowledge graph"],
+      "expected_entities": ["GraphRAG"],
+      "is_answerable": true,
+      "requires_timestamps": true,
+      "expected_timestamps": ["08:40", "14:20"]
+    },
+    {
+      "id": "eval_08_unanswerable",
+      "category": "Unanswerable questions",
+      "question": "What were the exact agricultural subsidies provided to Roman wheat farmers under Emperor Trajan in 112 AD?",
+      "expected_answer": "The indexed sources do not contain information regarding Roman agricultural subsidies under Emperor Trajan in 112 AD.",
+      "supporting_source_ids": [],
+      "expected_evidence": [],
+      "expected_entities": [],
+      "is_answerable": false,
+      "requires_timestamps": false,
+      "expected_timestamps": []
+    }
+  ]
+}

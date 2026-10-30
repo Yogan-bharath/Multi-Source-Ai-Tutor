@@ -95,28 +95,59 @@ def build_index(scraped_sources: List[dict], session_id: str, topic_name: str = 
         source_title = src.get("title") or source_url
         is_truncated = src.get("truncated", False)
 
-        chunks = _chunk_text(src["text"], settings.chunk_size, settings.chunk_overlap)
-        if len(chunks) > max_chunks:
-            chunks = chunks[:max_chunks]
-            is_truncated = True
+        custom_chunks = src.get("custom_chunks")
+        if custom_chunks:
+            chunk_count = len(custom_chunks)
+            for idx, c_obj in enumerate(custom_chunks):
+                c_text = c_obj["text"]
+                chunk_dict = {
+                    "source_id": sid,
+                    "original_url": orig_url,
+                    "resolved_url": source_url,
+                    "source_url": source_url,
+                    "url": source_url,
+                    "source_title": source_title,
+                    "title": source_title,
+                    "topic_name": topic_name,
+                    "chunk_index": idx,
+                    "timestamp": now_iso,
+                    "truncated": is_truncated,
+                    "text": c_text,
+                    "source_type": src.get("source_type", "website"),
+                    "start_time": c_obj.get("start_time"),
+                    "end_time": c_obj.get("end_time"),
+                    "timestamp_formatted": c_obj.get("timestamp_formatted"),
+                    "timestamp_url": c_obj.get("timestamp_url"),
+                    "video_id": c_obj.get("video_id"),
+                    "chunk_id": c_obj.get("chunk_id", f"{sid}_chunk_{idx}"),
+                }
+                all_chunks.append(chunk_dict)
+                all_texts.append(c_text)
+        else:
+            chunks = _chunk_text(src["text"], settings.chunk_size, settings.chunk_overlap)
+            if len(chunks) > max_chunks:
+                chunks = chunks[:max_chunks]
+                is_truncated = True
+            chunk_count = len(chunks)
 
-        for idx, c in enumerate(chunks):
-            chunk_dict = {
-                "source_id": sid,
-                "original_url": orig_url,
-                "resolved_url": source_url,
-                "source_url": source_url,
-                "url": source_url,
-                "source_title": source_title,
-                "title": source_title,
-                "topic_name": topic_name,
-                "chunk_index": idx,
-                "timestamp": now_iso,
-                "truncated": is_truncated,
-                "text": c,
-            }
-            all_chunks.append(chunk_dict)
-            all_texts.append(c)
+            for idx, c in enumerate(chunks):
+                chunk_dict = {
+                    "source_id": sid,
+                    "original_url": orig_url,
+                    "resolved_url": source_url,
+                    "source_url": source_url,
+                    "url": source_url,
+                    "source_title": source_title,
+                    "title": source_title,
+                    "topic_name": topic_name,
+                    "chunk_index": idx,
+                    "timestamp": now_iso,
+                    "truncated": is_truncated,
+                    "text": c,
+                    "source_type": src.get("source_type", "website"),
+                }
+                all_chunks.append(chunk_dict)
+                all_texts.append(c)
 
         sources_meta.append({
             "source_id": sid,
@@ -124,8 +155,13 @@ def build_index(scraped_sources: List[dict], session_id: str, topic_name: str = 
             "original_url": orig_url,
             "resolved_url": source_url,
             "title": source_title,
+            "source_type": src.get("source_type", "website"),
+            "video_id": src.get("video_id"),
+            "channel_name": src.get("channel_name"),
+            "thumbnail_url": src.get("thumbnail_url"),
+            "duration": src.get("duration"),
             "char_count": src.get("char_count", len(src.get("text", ""))),
-            "chunk_count": len(chunks),
+            "chunk_count": chunk_count,
             "truncated": is_truncated,
             "timestamp": now_iso,
         })
@@ -192,28 +228,59 @@ def append_to_index(new_scraped_sources: List[dict], session_id: str, topic_name
         source_title = src.get("title") or source_url
         is_truncated = src.get("truncated", False)
 
-        chunks = _chunk_text(src["text"], settings.chunk_size, settings.chunk_overlap)
-        if len(chunks) > max_chunks:
-            chunks = chunks[:max_chunks]
-            is_truncated = True
+        custom_chunks = src.get("custom_chunks")
+        if custom_chunks:
+            chunk_count = len(custom_chunks)
+            for idx, c_obj in enumerate(custom_chunks):
+                c_text = c_obj["text"]
+                chunk_dict = {
+                    "source_id": sid,
+                    "original_url": orig_url,
+                    "resolved_url": source_url,
+                    "source_url": source_url,
+                    "url": source_url,
+                    "source_title": source_title,
+                    "title": source_title,
+                    "topic_name": topic_name,
+                    "chunk_index": idx,
+                    "timestamp": now_iso,
+                    "truncated": is_truncated,
+                    "text": c_text,
+                    "source_type": src.get("source_type", "website"),
+                    "start_time": c_obj.get("start_time"),
+                    "end_time": c_obj.get("end_time"),
+                    "timestamp_formatted": c_obj.get("timestamp_formatted"),
+                    "timestamp_url": c_obj.get("timestamp_url"),
+                    "video_id": c_obj.get("video_id"),
+                    "chunk_id": c_obj.get("chunk_id", f"{sid}_chunk_{idx}"),
+                }
+                new_chunks.append(chunk_dict)
+                new_texts.append(c_text)
+        else:
+            chunks = _chunk_text(src["text"], settings.chunk_size, settings.chunk_overlap)
+            if len(chunks) > max_chunks:
+                chunks = chunks[:max_chunks]
+                is_truncated = True
+            chunk_count = len(chunks)
 
-        for idx, c in enumerate(chunks):
-            chunk_dict = {
-                "source_id": sid,
-                "original_url": orig_url,
-                "resolved_url": source_url,
-                "source_url": source_url,
-                "url": source_url,
-                "source_title": source_title,
-                "title": source_title,
-                "topic_name": topic_name,
-                "chunk_index": idx,
-                "timestamp": now_iso,
-                "truncated": is_truncated,
-                "text": c,
-            }
-            new_chunks.append(chunk_dict)
-            new_texts.append(c)
+            for idx, c in enumerate(chunks):
+                chunk_dict = {
+                    "source_id": sid,
+                    "original_url": orig_url,
+                    "resolved_url": source_url,
+                    "source_url": source_url,
+                    "url": source_url,
+                    "source_title": source_title,
+                    "title": source_title,
+                    "topic_name": topic_name,
+                    "chunk_index": idx,
+                    "timestamp": now_iso,
+                    "truncated": is_truncated,
+                    "text": c,
+                    "source_type": src.get("source_type", "website"),
+                }
+                new_chunks.append(chunk_dict)
+                new_texts.append(c)
 
         meta["sources"].append({
             "source_id": sid,
@@ -221,8 +288,13 @@ def append_to_index(new_scraped_sources: List[dict], session_id: str, topic_name
             "original_url": orig_url,
             "resolved_url": source_url,
             "title": source_title,
+            "source_type": src.get("source_type", "website"),
+            "video_id": src.get("video_id"),
+            "channel_name": src.get("channel_name"),
+            "thumbnail_url": src.get("thumbnail_url"),
+            "duration": src.get("duration"),
             "char_count": src.get("char_count", len(src.get("text", ""))),
-            "chunk_count": len(chunks),
+            "chunk_count": chunk_count,
             "truncated": is_truncated,
             "timestamp": now_iso,
         })

@@ -12,6 +12,10 @@ import {
   CheckCircle2,
   FileUp,
   File,
+  Youtube,
+  Video,
+  Play,
+  ExternalLink,
 } from 'lucide-react';
 import type { SourceInfo } from '@/types';
 
@@ -23,7 +27,7 @@ interface AddSourcesModalProps {
   onSourcesAdded: () => void;
 }
 
-type TabType = 'urls' | 'upload' | 'text';
+type TabType = 'urls' | 'upload' | 'text' | 'youtube';
 
 function isValidHttpUrl(str: string): boolean {
   if (!str) return false;
@@ -62,6 +66,23 @@ export function AddSourcesModal({
   const [pastedTitle, setPastedTitle] = useState('');
   const [pastedText, setPastedText] = useState('');
   const [textError, setTextError] = useState<string | null>(null);
+
+  // Tab 4: YouTube Video
+  const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [youtubeLang, setYoutubeLang] = useState('en');
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewData, setPreviewData] = useState<{
+    video_id: string;
+    url: string;
+    title: string;
+    author: string;
+    duration?: number;
+    duration_formatted?: string;
+    thumbnail_url?: string;
+    available_subtitles: string[];
+    is_available: boolean;
+  } | null>(null);
+  const [youtubeError, setYoutubeError] = useState<string | null>(null);
 
   // Global loading & status
   const [loading, setLoading] = useState(false);
@@ -277,14 +298,80 @@ export function AddSourcesModal({
     }
   };
 
+  // --- Handlers for Tab 4: YouTube ---
+  const fetchYouTubePreview = async (urlToFetch?: string) => {
+    const target = (urlToFetch !== undefined ? urlToFetch : youtubeUrl).trim();
+    if (!target) return;
+    setPreviewLoading(true);
+    setYoutubeError(null);
+    setPreviewData(null);
+    try {
+      const res = await fetch('/api/ingest/youtube/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ url: target }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || 'Could not fetch video preview');
+      }
+      setPreviewData(data);
+    } catch (e: any) {
+      setYoutubeError(e.message || 'Error loading video preview');
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const submitYouTube = async () => {
+    const cleanUrl = youtubeUrl.trim();
+    if (!cleanUrl) {
+      setYoutubeError('Please enter a YouTube video URL');
+      return;
+    }
+    setLoading(true);
+    setGlobalError(null);
+    setSuccessMsg(null);
+    setYoutubeError(null);
+
+    try {
+      const res = await fetch('/api/ingest/youtube', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          project_id: projectId,
+          url: cleanUrl,
+          preferred_language: youtubeLang,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || 'Failed to ingest YouTube video');
+      }
+
+      setSuccessMsg('YouTube video transcript indexed into notebook successfully!');
+      onSourcesAdded();
+      setTimeout(() => {
+        onClose();
+      }, 1200);
+    } catch (e: any) {
+      setGlobalError(e.message || 'Error processing YouTube video');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn"
-      style={{ background: 'rgba(0, 0, 0, 0.65)', backdropFilter: 'blur(4px)' }}
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn"
+      style={{ background: 'rgba(0, 0, 0, 0.7)', backdropFilter: 'blur(4px)' }}
       onKeyDown={(e) => e.key === 'Escape' && !loading && onClose()}
     >
       <div
-        className="rounded-2xl shadow-modal w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh] animate-scaleIn"
+        className="rounded-t-2xl sm:rounded-2xl shadow-modal w-full sm:max-w-xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] animate-scaleIn transition-all"
         style={{
           background: 'var(--surface-overlay)',
           border: '1px solid var(--border)',
@@ -292,23 +379,28 @@ export function AddSourcesModal({
         }}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Mobile Swipe / Sheet Handle Indicator */}
+        <div className="flex sm:hidden justify-center pt-2 pb-1" style={{ background: 'var(--surface-overlay)' }}>
+          <div className="w-10 h-1 rounded-full opacity-30" style={{ background: 'var(--ink)' }} />
+        </div>
+
         {/* Header */}
         <div
-          className="flex items-center justify-between p-5"
+          className="flex items-center justify-between px-4 py-3 sm:p-5"
           style={{ borderBottom: '1px solid var(--border)' }}
         >
-          <div>
-            <h3 className="text-[16px] font-bold leading-snug" style={{ color: 'var(--ink)' }}>
+          <div className="pr-2">
+            <h3 className="text-[15px] sm:text-[16px] font-bold leading-snug" style={{ color: 'var(--ink)' }}>
               Add Sources to Notebook
             </h3>
-            <p className="text-[12px] mt-0.5" style={{ color: 'var(--ink-muted)' }}>
+            <p className="text-[11px] sm:text-[12px] mt-0.5 line-clamp-1 sm:line-clamp-none" style={{ color: 'var(--ink-muted)' }}>
               Ground your AI tutor in web articles, documents, or personal research notes
             </p>
           </div>
           <button
             onClick={onClose}
             disabled={loading}
-            className="p-1.5 rounded-lg transition-colors hover:opacity-80"
+            className="p-1.5 rounded-lg transition-colors hover:opacity-80 flex-shrink-0"
             style={{ color: 'var(--ink-faint)' }}
             title="Close dialog"
           >
@@ -316,9 +408,9 @@ export function AddSourcesModal({
           </button>
         </div>
 
-        {/* Source Selection Tabs */}
+        {/* Source Selection Tabs - Responsive scrollable bar with visible indicators */}
         <div
-          className="flex px-5 pt-2 gap-3"
+          className="flex px-3 sm:px-5 pt-1.5 sm:pt-2 gap-1.5 sm:gap-3 overflow-x-auto no-scrollbar scroll-smooth flex-nowrap"
           style={{
             background: 'var(--canvas-alt)',
             borderBottom: '1px solid var(--border)',
@@ -329,13 +421,13 @@ export function AddSourcesModal({
               setActiveTab('urls');
               setGlobalError(null);
             }}
-            className="flex items-center gap-2 pb-2.5 px-2 text-[12px] font-semibold border-b-2 transition-colors"
+            className="flex items-center gap-1.5 sm:gap-2 pb-2 sm:pb-2.5 px-2.5 sm:px-2 text-[11px] sm:text-[12px] font-semibold border-b-2 transition-colors flex-shrink-0 whitespace-nowrap"
             style={{
               borderColor: activeTab === 'urls' ? 'var(--accent)' : 'transparent',
               color: activeTab === 'urls' ? 'var(--accent)' : 'var(--ink-muted)',
             }}
           >
-            <Globe className="w-4 h-4" />
+            <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span>Websites / URLs</span>
           </button>
           <button
@@ -343,13 +435,13 @@ export function AddSourcesModal({
               setActiveTab('upload');
               setGlobalError(null);
             }}
-            className="flex items-center gap-2 pb-2.5 px-2 text-[12px] font-semibold border-b-2 transition-colors"
+            className="flex items-center gap-1.5 sm:gap-2 pb-2 sm:pb-2.5 px-2.5 sm:px-2 text-[11px] sm:text-[12px] font-semibold border-b-2 transition-colors flex-shrink-0 whitespace-nowrap"
             style={{
               borderColor: activeTab === 'upload' ? 'var(--accent)' : 'transparent',
               color: activeTab === 'upload' ? 'var(--accent)' : 'var(--ink-muted)',
             }}
           >
-            <Upload className="w-4 h-4" />
+            <Upload className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span>Upload Document</span>
           </button>
           <button
@@ -357,19 +449,33 @@ export function AddSourcesModal({
               setActiveTab('text');
               setGlobalError(null);
             }}
-            className="flex items-center gap-2 pb-2.5 px-2 text-[12px] font-semibold border-b-2 transition-colors"
+            className="flex items-center gap-1.5 sm:gap-2 pb-2 sm:pb-2.5 px-2.5 sm:px-2 text-[11px] sm:text-[12px] font-semibold border-b-2 transition-colors flex-shrink-0 whitespace-nowrap"
             style={{
               borderColor: activeTab === 'text' ? 'var(--accent)' : 'transparent',
               color: activeTab === 'text' ? 'var(--accent)' : 'var(--ink-muted)',
             }}
           >
-            <FileText className="w-4 h-4" />
+            <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span>Paste Notes</span>
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('youtube');
+              setGlobalError(null);
+            }}
+            className="flex items-center gap-1.5 sm:gap-2 pb-2 sm:pb-2.5 px-2.5 sm:px-2 text-[11px] sm:text-[12px] font-semibold border-b-2 transition-colors flex-shrink-0 whitespace-nowrap"
+            style={{
+              borderColor: activeTab === 'youtube' ? 'var(--accent)' : 'transparent',
+              color: activeTab === 'youtube' ? 'var(--accent)' : 'var(--ink-muted)',
+            }}
+          >
+            <Youtube className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-500" />
+            <span>YouTube Video</span>
           </button>
         </div>
 
-        {/* Form Body */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-4">
+        {/* Form Body - Responsive padding and scroll */}
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-3.5 sm:space-y-4">
           {globalError && (
             <div
               className="p-3 rounded-lg flex items-start gap-2.5 text-[12px]"
@@ -612,24 +718,183 @@ export function AddSourcesModal({
               </div>
             </div>
           )}
+
+          {/* TAB 4: YOUTUBE VIDEO */}
+          {activeTab === 'youtube' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[12px] font-semibold mb-1" style={{ color: 'var(--ink)' }}>
+                  YouTube Video Link
+                </label>
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="url"
+                      value={youtubeUrl}
+                      onChange={(e) => {
+                        setYoutubeUrl(e.target.value);
+                        if (youtubeError) setYoutubeError(null);
+                      }}
+                      onBlur={() => {
+                        if (youtubeUrl.trim() && !previewData && !previewLoading) {
+                          fetchYouTubePreview(youtubeUrl.trim());
+                        }
+                      }}
+                      placeholder="https://www.youtube.com/watch?v=..."
+                      disabled={loading}
+                      className="w-full px-3 py-2 text-[12px] rounded-lg focus:outline-none transition-colors"
+                      style={{
+                        background: 'var(--canvas-alt)',
+                        border: `1px solid ${youtubeError ? 'var(--negative)' : 'var(--border)'}`,
+                        color: 'var(--ink)',
+                      }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => fetchYouTubePreview()}
+                    disabled={previewLoading || loading || !youtubeUrl.trim()}
+                    className="px-3 py-2 text-[12px] font-medium rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-40"
+                    style={{
+                      background: 'var(--canvas-alt)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--ink)',
+                    }}
+                  >
+                    {previewLoading ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Play className="w-3.5 h-3.5 text-red-500" />
+                    )}
+                    <span>Preview</span>
+                  </button>
+                </div>
+                {youtubeError && (
+                  <p className="text-[11px] mt-1" style={{ color: 'var(--negative)' }}>
+                    {youtubeError}
+                  </p>
+                )}
+              </div>
+
+              {/* Language Selection */}
+              <div className="flex items-center justify-between">
+                <label className="text-[12px] font-semibold" style={{ color: 'var(--ink)' }}>
+                  Preferred Caption Language
+                </label>
+                <select
+                  value={youtubeLang}
+                  onChange={(e) => setYoutubeLang(e.target.value)}
+                  disabled={loading}
+                  className="px-2.5 py-1.5 text-[12px] rounded-md focus:outline-none"
+                  style={{
+                    background: 'var(--canvas-alt)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--ink)',
+                  }}
+                >
+                  <option value="en">English (Default)</option>
+                  <option value="es">Spanish (Español)</option>
+                  <option value="fr">French (Français)</option>
+                  <option value="de">German (Deutsch)</option>
+                  <option value="hi">Hindi (हिंदी)</option>
+                  <option value="auto">Any Available Language</option>
+                </select>
+              </div>
+
+              {/* Video Preview Card */}
+              {previewData && (
+                <div
+                  className="p-3 sm:p-3.5 rounded-xl flex flex-col xs:flex-row gap-3 animate-fadeIn"
+                  style={{
+                    background: 'var(--canvas-alt)',
+                    border: '1px solid var(--border)',
+                  }}
+                >
+                  {previewData.thumbnail_url ? (
+                    <img
+                      src={previewData.thumbnail_url}
+                      alt={previewData.title}
+                      className="w-full xs:w-28 h-32 xs:h-20 object-cover rounded-lg flex-shrink-0"
+                    />
+                  ) : (
+                    <div
+                      className="w-full xs:w-28 h-24 xs:h-20 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{ background: 'var(--surface)' }}
+                    >
+                      <Youtube className="w-8 h-8 text-red-500" />
+                    </div>
+                  )}
+
+                  <div className="flex-1 min-w-0 flex flex-col justify-between">
+                    <div>
+                      <h4
+                        className="text-[12.5px] sm:text-[13px] font-semibold leading-tight line-clamp-2"
+                        style={{ color: 'var(--ink)' }}
+                      >
+                        {previewData.title}
+                      </h4>
+                      <p className="text-[11px] mt-0.5" style={{ color: 'var(--ink-muted)' }}>
+                        {previewData.author || 'YouTube Creator'}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 sm:gap-2 mt-2 flex-wrap">
+                      {previewData.duration_formatted && (
+                        <span
+                          className="px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold"
+                          style={{ background: 'var(--surface)', color: 'var(--ink)' }}
+                        >
+                          {previewData.duration_formatted}
+                        </span>
+                      )}
+                      <span
+                        className="px-1.5 py-0.5 rounded text-[10px] font-medium"
+                        style={{
+                          background: 'var(--positive-muted)',
+                          color: 'var(--positive)',
+                        }}
+                      >
+                        Captions Available ({previewData.available_subtitles.length} tracks)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Informational constraint banner */}
+              <div
+                className="p-3 rounded-lg text-[11px] leading-relaxed flex items-start gap-2"
+                style={{
+                  background: 'var(--canvas-alt)',
+                  border: '1px solid var(--border-muted)',
+                  color: 'var(--ink-muted)',
+                }}
+              >
+                <div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1 flex-shrink-0" />
+                <span>
+                  <strong>Transcript-based learning:</strong> We extract and timestamp available subtitles and captions without downloading video or audio. Timestamp citations in tutor answers will jump directly to video playback.
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Footer Actions */}
+        {/* Footer Actions - Responsive stacked or horizontal layout */}
         <div
-          className="p-4 flex items-center justify-between"
+          className="p-3.5 sm:p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-0"
           style={{
             borderTop: '1px solid var(--border)',
             background: 'var(--canvas-alt)',
           }}
         >
-          <div className="text-[11px]" style={{ color: 'var(--ink-faint)' }}>
+          <div className="text-[11px] text-center sm:text-left hidden xs:block" style={{ color: 'var(--ink-faint)' }}>
             Grounded in vector semantic indexing
           </div>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center justify-end gap-2 sm:gap-2.5 w-full sm:w-auto">
             <button
               onClick={onClose}
               disabled={loading}
-              className="px-4 py-2 text-[12px] font-medium rounded-lg transition-colors hover:opacity-80"
+              className="flex-1 sm:flex-initial px-3 sm:px-4 py-2 text-[12px] font-medium rounded-lg transition-colors hover:opacity-80 text-center"
               style={{
                 background: 'var(--surface)',
                 border: '1px solid var(--border)',
@@ -643,9 +908,10 @@ export function AddSourcesModal({
                 if (activeTab === 'urls') submitUrls();
                 else if (activeTab === 'upload') submitFile();
                 else if (activeTab === 'text') submitText();
+                else if (activeTab === 'youtube') submitYouTube();
               }}
               disabled={loading}
-              className="px-4 py-2 text-[12px] font-semibold rounded-lg shadow-sm transition-opacity hover:opacity-90 flex items-center gap-2"
+              className="flex-[1.5] sm:flex-initial px-4 py-2 text-[12px] font-semibold rounded-lg shadow-sm transition-opacity hover:opacity-90 flex items-center justify-center gap-2"
               style={{
                 background: 'var(--accent)',
                 color: 'var(--accent-ink)',

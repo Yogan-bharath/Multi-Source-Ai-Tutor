@@ -39,13 +39,19 @@ export interface SourceInfo {
   original_url?: string;
   resolved_url?: string | null;
   title: string;
-  source_type?: 'website' | 'pdf' | 'file' | 'text' | string;
-  status: 'success' | 'failed';
+  source_type?: 'website' | 'pdf' | 'file' | 'text' | 'youtube' | string;
+  status: 'success' | 'failed' | 'processing';
   chunk_count: number;
   chunks_indexed?: number;
   char_count: number;
   truncated?: boolean;
   error?: string | null;
+  video_id?: string;
+  channel_name?: string;
+  thumbnail_url?: string;
+  duration?: number;
+  duration_formatted?: string;
+  timestamp_url?: string;
 }
 
 
